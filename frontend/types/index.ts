@@ -7,6 +7,9 @@ export interface User {
   phone?: string;
   isVerified: boolean;
   createdAt: string;
+  updatedAt?: string;
+  lastLogin?: string | null;
+  agentProfile?: Agent | null;
 }
 
 export interface Property {
