@@ -19,6 +19,7 @@ const createTables = async () => {
         verification_token VARCHAR(255),
         reset_token VARCHAR(255),
         reset_token_expiry TIMESTAMP,
+        last_login TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
