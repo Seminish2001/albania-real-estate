@@ -148,6 +148,45 @@ export const createTables = async () => {
       CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
     `);
 
+    // System logs table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS system_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        type VARCHAR(50) NOT NULL CHECK (type IN ('error', 'warning', 'info', 'security')),
+        message TEXT NOT NULL,
+        details JSONB,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        ip_address INET,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add suspension fields to users table
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS suspended_until TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS suspension_reason TEXT
+    `);
+
+    // Add rejection reason to properties table
+    await pool.query(`
+      ALTER TABLE properties 
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT
+    `);
+
+    // Create indexes for admin queries
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_system_logs_type_created 
+      ON system_logs(type, created_at DESC);
+      
+      CREATE INDEX IF NOT EXISTS idx_users_suspended 
+      ON users(suspended_until) WHERE suspended_until IS NOT NULL;
+      
+      CREATE INDEX IF NOT EXISTS idx_properties_verification 
+      ON properties(is_verified, status, created_at DESC);
+    `);
+
     console.log('✅ Database tables created successfully');
   } catch (error) {
     console.error('❌ Error creating tables:', error);

@@ -435,22 +435,46 @@ export class Property {
     return this.formatProperties(result.rows);
   }
 
-  static async verify(propertyId, adminId = null) {
+  static async verify(propertyId) {
     const query = `
-      UPDATE properties
-      SET is_verified = TRUE,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
+      UPDATE properties 
+      SET is_verified = TRUE, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $1 
       RETURNING *
     `;
-
+    
     const result = await pool.query(query, [propertyId]);
+    return result.rows[0];
+  }
 
-    if (result.rowCount === 0) {
-      throw new Error('Property not found');
-    }
+  static async reject(propertyId, reason) {
+    const query = `
+      UPDATE properties 
+      SET status = 'inactive', rejection_reason = $1, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $2 
+      RETURNING *
+    `;
+    
+    const result = await pool.query(query, [reason, propertyId]);
+    return result.rows[0];
+  }
 
-    const property = result.rows[0];
-    return this.formatProperty(property);
+  static async getAdminStats() {
+    const query = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE is_verified = TRUE) as verified,
+        COUNT(*) FILTER (WHERE is_verified = FALSE) as pending,
+        COUNT(*) FILTER (WHERE status = 'active') as active,
+        COUNT(*) FILTER (WHERE status = 'sold') as sold,
+        COUNT(*) FILTER (WHERE status = 'rented') as rented,
+        COUNT(*) FILTER (WHERE featured = TRUE) as featured,
+        AVG(price) as avg_price,
+        SUM(views) as total_views
+      FROM properties
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows[0];
   }
 }
