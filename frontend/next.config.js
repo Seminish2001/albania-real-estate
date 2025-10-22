@@ -3,8 +3,9 @@ const nextConfig = {
   experimental: {
     appDir: true,
   },
+  output: 'standalone',
   images: {
-    domains: ['res.cloudinary.com', 'lh3.googleusercontent.com', 'images.unsplash.com'],
+    domains: ['res.cloudinary.com', 'lh3.googleusercontent.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -14,7 +15,7 @@ const nextConfig = {
     ],
   },
   env: {
-    BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:5000/api',
+    BACKEND_URL: process.env.BACKEND_URL || 'https://immo-albania-backend.onrender.com/api',
   },
   async headers() {
     return [
@@ -26,8 +27,30 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
         ],
       },
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+        ],
+      },
     ];
   },
+  // Enable compression
+  compress: true,
+  // Optimize for production
+  poweredByHeader: false,
+  generateEtags: false,
 };
 
 module.exports = nextConfig;

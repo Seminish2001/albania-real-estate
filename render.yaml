@@ -1,0 +1,57 @@
+services:
+  # Backend API
+  - type: web
+    name: immo-albania-backend
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_HOST
+        fromDatabase:
+          name: immo-albania-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: immo-albania-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: immo-albania-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: immo-albania-db
+          property: password
+
+  # Frontend
+  - type: web
+    name: immo-albania-frontend
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_URL
+        fromService:
+          name: immo-albania-backend
+          type: web
+          property: url
+          suffix: "/api"
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://immo-albania-frontend.onrender.com
+
+databases:
+  - name: immo-albania-db
+    plan: free
+    region: frankfurt
+    databaseName: immo_albania
+    user: immo_user
