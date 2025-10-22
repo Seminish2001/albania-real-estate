@@ -14,7 +14,7 @@ describe('Chat API', () => {
       .send({
         name: 'Chat User 1',
         email: 'chat1@example.com',
-        password: 'password123',
+        password: 'Password123!',
         role: 'user'
       });
 
@@ -23,7 +23,7 @@ describe('Chat API', () => {
       .send({
         name: 'Chat User 2',
         email: 'chat2@example.com',
-        password: 'password123',
+        password: 'Password123!',
         role: 'agent'
       });
 
@@ -151,7 +151,7 @@ describe('Chat API', () => {
         .send({
           name: 'User 3',
           email: 'user3@example.com',
-          password: 'password123'
+        password: 'Password123!'
         });
 
       const user3Token = user3Response.body.data.token;

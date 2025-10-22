@@ -11,7 +11,7 @@ describe('Authentication API', () => {
         .send({
           name: 'Test User',
           email: 'test@example.com',
-          password: 'password123',
+          password: 'Password123!',
           phone: '+355123456789',
           role: 'user'
         })
@@ -30,7 +30,7 @@ describe('Authentication API', () => {
         .send({
           name: 'Test Agent',
           email: 'agent@example.com',
-          password: 'password123',
+          password: 'Password123!',
           role: 'agent'
         })
         .expect(201);
@@ -45,7 +45,7 @@ describe('Authentication API', () => {
         .send({
           name: 'Test User',
           email: 'duplicate@example.com',
-          password: 'password123'
+          password: 'Password123!'
         });
 
       const response = await request(app)
@@ -53,7 +53,7 @@ describe('Authentication API', () => {
         .send({
           name: 'Another User',
           email: 'duplicate@example.com',
-          password: 'password123'
+          password: 'Password123!'
         })
         .expect(409);
 
@@ -81,7 +81,7 @@ describe('Authentication API', () => {
         .send({
           name: 'Login User',
           email: 'login@example.com',
-          password: 'password123'
+          password: 'Password123!'
         });
     });
 
@@ -90,7 +90,7 @@ describe('Authentication API', () => {
         .post('/api/auth/login')
         .send({
           email: 'login@example.com',
-          password: 'password123'
+          password: 'Password123!'
         })
         .expect(200);
 

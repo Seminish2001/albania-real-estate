@@ -1,42 +1,52 @@
 import express from 'express';
-import { body, validationResult, query } from 'express-validator';
+import { query } from 'express-validator';
 import { Property } from '../models/Property.js';
 import { Agent } from '../models/Agent.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
 import { cacheMiddleware, invalidateCache, CACHE_PATTERNS } from '../middleware/cache.js';
 import { redisCache } from '../config/redis.js';
+import {
+  catchAsync,
+  AuthorizationError,
+  NotFoundError,
+  ValidationError
+} from '../middleware/errorHandler.js';
+import {
+  validatePagination,
+  validatePropertyCreation,
+  validateRequest,
+  validateCoordinates,
+  validateObjectId
+} from '../utils/validation.js';
 
 const router = express.Router();
 
-// Get all properties with search and filters (Cached)
-router.get('/', 
-  cacheMiddleware(600),
-  [
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('type').optional().isIn(['sale', 'rent']),
-  query('category').optional().isIn(['residential', 'commercial', 'land']),
-  query('city').optional().isString(),
-  query('minPrice').optional().isFloat({ min: 0 }),
-  query('maxPrice').optional().isFloat({ min: 0 }),
-  query('minBedrooms').optional().isInt({ min: 0 }),
-  query('maxBedrooms').optional().isInt({ min: 0 }),
-  query('minArea').optional().isFloat({ min: 0 }),
-  query('maxArea').optional().isFloat({ min: 0 }),
+const propertyQueryValidation = [
+  ...validatePagination,
+  query('type').optional().isIn(['sale', 'rent']).withMessage('Type must be sale or rent'),
+  query('category')
+    .optional()
+    .isIn(['residential', 'commercial', 'land'])
+    .withMessage('Category must be residential, commercial, or land'),
+  query('city').optional().isString().trim().isLength({ max: 100 }),
+  query('minPrice').optional().isFloat({ min: 0 }).withMessage('Minimum price must be positive'),
+  query('maxPrice').optional().isFloat({ min: 0 }).withMessage('Maximum price must be positive'),
+  query('minBedrooms').optional().isInt({ min: 0 }).withMessage('Minimum bedrooms must be positive'),
+  query('maxBedrooms').optional().isInt({ min: 0 }).withMessage('Maximum bedrooms must be positive'),
+  query('minArea').optional().isFloat({ min: 0 }).withMessage('Minimum area must be positive'),
+  query('maxArea').optional().isFloat({ min: 0 }).withMessage('Maximum area must be positive'),
   query('features').optional().isString(),
   query('q').optional().isString()
-  ], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: errors.array()
-      });
-    }
+];
 
+// Get all properties with search and filters (Cached)
+router.get(
+  '/',
+  cacheMiddleware(600),
+  ...propertyQueryValidation,
+  validateRequest,
+  catchAsync(async (req, res) => {
     const {
       page = 1,
       limit = 12,
@@ -73,38 +83,30 @@ router.get('/',
       success: true,
       data: result
     });
-
-  } catch (error) {
-    console.error('Get properties error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Get featured properties (Cached)
-router.get('/featured', cacheMiddleware(900), async (req, res) => {
-  try {
+router.get(
+  '/featured',
+  cacheMiddleware(900),
+  catchAsync(async (req, res) => {
     const featuredProperties = await Property.getFeatured();
 
     res.json({
       success: true,
       data: { properties: featuredProperties }
     });
-
-  } catch (error) {
-    console.error('Get featured properties error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Get properties by agent
-router.get('/agent/:agentId', async (req, res) => {
-  try {
+router.get(
+  '/agent/:agentId',
+  validateObjectId('agentId'),
+  ...validatePagination,
+  validateRequest,
+  catchAsync(async (req, res) => {
     const { agentId } = req.params;
     const { page = 1, limit = 12 } = req.query;
 
@@ -114,19 +116,16 @@ router.get('/agent/:agentId', async (req, res) => {
       success: true,
       data: properties
     });
-
-  } catch (error) {
-    console.error('Get agent properties error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Get user favorites
-router.get('/favorites/mine', authenticate, async (req, res) => {
-  try {
+router.get(
+  '/favorites/mine',
+  authenticate,
+  ...validatePagination,
+  validateRequest,
+  catchAsync(async (req, res) => {
     const userId = req.user.id;
     const { page = 1, limit = 12 } = req.query;
 
@@ -136,19 +135,15 @@ router.get('/favorites/mine', authenticate, async (req, res) => {
       success: true,
       data: favorites
     });
-
-  } catch (error) {
-    console.error('Get favorites error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Get single property with caching and view tracking
-router.get('/:id', async (req, res) => {
-  try {
+router.get(
+  '/:id',
+  validateObjectId(),
+  validateRequest,
+  catchAsync(async (req, res) => {
     const { id } = req.params;
     const cacheKey = `cache:/api/properties/${id}`;
     const cacheEnabled = redisCache.isEnabled();
@@ -183,10 +178,7 @@ router.get('/:id', async (req, res) => {
 
     const property = await Property.findById(id);
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        error: 'Property not found'
-      });
+      throw new NotFoundError('Property');
     }
 
     await Property.incrementViews(id);
@@ -206,57 +198,23 @@ router.get('/:id', async (req, res) => {
     }
 
     res.json(responsePayload);
-
-  } catch (error) {
-    console.error('Get property error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
-
-// Create property validation
-const createPropertyValidation = [
-  body('title').notEmpty().isLength({ max: 500 }),
-  body('description').notEmpty(),
-  body('type').isIn(['sale', 'rent']),
-  body('category').isIn(['residential', 'commercial', 'land']),
-  body('price').isFloat({ min: 0 }),
-  body('currency').optional().isIn(['ALL', 'EUR']),
-  body('city').notEmpty(),
-  body('municipality').notEmpty(),
-  body('address').notEmpty(),
-  body('latitude').isFloat({ min: -90, max: 90 }),
-  body('longitude').isFloat({ min: -180, max: 180 }),
-  body('bedrooms').optional().isInt({ min: 0 }),
-  body('bathrooms').optional().isInt({ min: 0 }),
-  body('area').isFloat({ min: 0 }),
-  body('floor').optional().isInt({ min: 0 }),
-  body('totalFloors').optional().isInt({ min: 0 }),
-  body('yearBuilt').optional().isInt({ min: 1800, max: new Date().getFullYear() }),
-  body('features').optional().isArray()
-];
+  })
+);
 
 // Create property
-router.post('/', authenticate, authorize('agent', 'admin'), createPropertyValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        details: errors.array()
-      });
-    }
-
+router.post(
+  '/',
+  authenticate,
+  authorize('agent', 'admin'),
+  ...validatePropertyCreation,
+  validateRequest,
+  catchAsync(async (req, res) => {
     const agent = await Agent.findByUserId(req.user.id);
     if (!agent) {
-      return res.status(403).json({
-        success: false,
-        error: 'Agent profile not found'
-      });
+      throw new AuthorizationError('Agent profile not found');
     }
+
+    validateCoordinates(req.body.latitude, req.body.longitude);
 
     const propertyData = {
       ...req.body,
@@ -279,42 +237,39 @@ router.post('/', authenticate, authorize('agent', 'admin'), createPropertyValida
       data: { property },
       message: 'Property created successfully'
     });
-
-  } catch (error) {
-    console.error('Create property error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Update property
-router.put('/:id', authenticate, authorize('agent', 'admin'), async (req, res) => {
-  try {
+router.put(
+  '/:id',
+  authenticate,
+  authorize('agent', 'admin'),
+  validateObjectId(),
+  validateRequest,
+  catchAsync(async (req, res) => {
     const { id } = req.params;
 
     const property = await Property.findById(id);
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        error: 'Property not found'
-      });
+      throw new NotFoundError('Property');
     }
 
     const agent = await Agent.findByUserId(req.user.id);
     if (!agent && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Agent profile not found'
-      });
+      throw new AuthorizationError('Agent profile not found');
     }
 
     if (req.user.role !== 'admin' && property.agentId !== agent.id) {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to update this property'
-      });
+      throw new AuthorizationError('Not authorized to update this property');
+    }
+
+    if ((req.body.latitude !== undefined) !== (req.body.longitude !== undefined)) {
+      throw new ValidationError('Latitude and longitude must be provided together');
+    }
+
+    if (req.body.latitude !== undefined && req.body.longitude !== undefined) {
+      validateCoordinates(Number(req.body.latitude), Number(req.body.longitude));
     }
 
     const updatedProperty = await Property.update(id, req.body);
@@ -332,42 +287,31 @@ router.put('/:id', authenticate, authorize('agent', 'admin'), async (req, res) =
       data: { property: updatedProperty },
       message: 'Property updated successfully'
     });
-
-  } catch (error) {
-    console.error('Update property error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Delete property
-router.delete('/:id', authenticate, authorize('agent', 'admin'), async (req, res) => {
-  try {
+router.delete(
+  '/:id',
+  authenticate,
+  authorize('agent', 'admin'),
+  validateObjectId(),
+  validateRequest,
+  catchAsync(async (req, res) => {
     const { id } = req.params;
 
     const property = await Property.findById(id);
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        error: 'Property not found'
-      });
+      throw new NotFoundError('Property');
     }
 
     const agent = await Agent.findByUserId(req.user.id);
     if (!agent && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Agent profile not found'
-      });
+      throw new AuthorizationError('Agent profile not found');
     }
 
     if (req.user.role !== 'admin' && property.agentId !== agent.id) {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to delete this property'
-      });
+      throw new AuthorizationError('Not authorized to delete this property');
     }
 
     await Property.delete(id);
@@ -384,50 +328,36 @@ router.delete('/:id', authenticate, authorize('agent', 'admin'), async (req, res
       success: true,
       message: 'Property deleted successfully'
     });
-
-  } catch (error) {
-    console.error('Delete property error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Upload property images
-router.post('/:id/images', authenticate, authorize('agent', 'admin'), async (req, res) => {
-  try {
+router.post(
+  '/:id/images',
+  authenticate,
+  authorize('agent', 'admin'),
+  validateObjectId(),
+  validateRequest,
+  catchAsync(async (req, res) => {
     const { id } = req.params;
     const { images } = req.body;
 
     if (!images || !Array.isArray(images)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Images array is required'
-      });
+      throw new ValidationError('Images array is required');
     }
 
     const property = await Property.findById(id);
     if (!property) {
-      return res.status(404).json({
-        success: false,
-        error: 'Property not found'
-      });
+      throw new NotFoundError('Property');
     }
 
     const agent = await Agent.findByUserId(req.user.id);
     if (!agent && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Agent profile not found'
-      });
+      throw new AuthorizationError('Agent profile not found');
     }
 
     if (req.user.role !== 'admin' && property.agentId !== agent.id) {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to update this property'
-      });
+      throw new AuthorizationError('Not authorized to update this property');
     }
 
     const uploadedImages = [];
@@ -455,19 +385,16 @@ router.post('/:id/images', authenticate, authorize('agent', 'admin'), async (req
       data: { property: updatedProperty },
       message: 'Images uploaded successfully'
     });
-
-  } catch (error) {
-    console.error('Upload images error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 // Toggle property favorite
-router.post('/:id/favorite', authenticate, async (req, res) => {
-  try {
+router.post(
+  '/:id/favorite',
+  authenticate,
+  validateObjectId(),
+  validateRequest,
+  catchAsync(async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
@@ -478,14 +405,7 @@ router.post('/:id/favorite', authenticate, async (req, res) => {
       data: { isFavorited },
       message: isFavorited ? 'Property added to favorites' : 'Property removed from favorites'
     });
-
-  } catch (error) {
-    console.error('Toggle favorite error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
+  })
+);
 
 export default router;
