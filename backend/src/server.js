@@ -1,131 +1,160 @@
 import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { createServer } from 'http';
+import { createServer as createHttpServer } from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 
-// Load env vars
-dotenv.config();
-
-// Import routes
 import authRoutes from './routes/auth.js';
 import propertyRoutes from './routes/properties.js';
 import userRoutes from './routes/users.js';
 import agentRoutes from './routes/agents.js';
 import chatRoutes from './routes/chat.js';
+import paymentRoutes from './routes/payments.js';
+import adminRoutes from './routes/admin.js';
+import { validateEnv, initErrorTracking } from './config/env.js';
+import { createIndexes } from './config/optimize.js';
+import {
+  securityHeaders,
+  corsMiddleware,
+  authLimiter,
+  apiLimiter,
+  corsOptions
+} from './middleware/security.js';
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST']
+dotenv.config();
+
+export let io;
+
+const configureApp = () => {
+  const app = express();
+
+  app.use(securityHeaders);
+  app.use(corsMiddleware);
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true }));
+  app.use('/api', apiLimiter);
+
+  app.use('/api/auth', authLimiter, authRoutes);
+  app.use('/api/properties', propertyRoutes);
+  app.use('/api/users', userRoutes);
+  app.use('/api/agents', agentRoutes);
+  app.use('/api/chat', chatRoutes);
+  app.use('/api/payments', paymentRoutes);
+  app.use('/api/admin', adminRoutes);
+
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV
+    });
+  });
+
+  // Error handling middleware
+  app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+      error: 'Something went wrong!',
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
+  });
+
+  // 404 handler
+  app.use('*', (req, res) => {
+    res.status(404).json({ error: 'Route not found' });
+  });
+
+  return app;
+};
+
+const configureSockets = (httpServer) => {
+  io = new Server(httpServer, {
+    cors: {
+      origin: corsOptions.origin,
+      methods: ['GET', 'POST'],
+      credentials: Boolean(corsOptions.credentials)
+    }
+  });
+
+  io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+
+    socket.on('join-user', (userId) => {
+      if (!userId) return;
+      socket.join(userId);
+      console.log(`User ${userId} joined their room`);
+    });
+
+    socket.on('join-chat', (chatId) => {
+      if (!chatId) return;
+      socket.join(chatId);
+      console.log(`User joined chat: ${chatId}`);
+    });
+
+    socket.on('leave-chat', (chatId) => {
+      if (!chatId) return;
+      socket.leave(chatId);
+      console.log(`User left chat: ${chatId}`);
+    });
+
+    socket.on('typing-start', ({ chatId, userId }) => {
+      if (!chatId || !userId) return;
+      socket.to(chatId).emit('user-typing', {
+        chatId,
+        userId,
+        typing: true
+      });
+    });
+
+    socket.on('typing-stop', ({ chatId, userId }) => {
+      if (!chatId || !userId) return;
+      socket.to(chatId).emit('user-typing', {
+        chatId,
+        userId,
+        typing: false
+      });
+    });
+
+    socket.on('message-delivered', ({ messageId, chatId }) => {
+      if (!messageId || !chatId) return;
+      socket.to(chatId).emit('message-delivery-update', {
+        messageId,
+        status: 'delivered'
+      });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('User disconnected:', socket.id);
+    });
+  });
+};
+
+export const createServer = async () => {
+  validateEnv();
+  initErrorTracking();
+  return configureApp();
+};
+
+export const startServer = async () => {
+  const app = await createServer();
+  const httpServer = createHttpServer(app);
+  configureSockets(httpServer);
+
+  const PORT = process.env.PORT || 5000;
+
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  });
+
+  if (process.env.NODE_ENV === 'production') {
+    createIndexes().catch((error) => {
+      console.error('Error creating indexes:', error);
+    });
   }
-});
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-});
+  return { app, httpServer, io };
+};
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(limiter);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/properties', propertyRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/agents', agentRoutes);
-app.use('/api/chat', chatRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
-  });
-});
-
-// Socket.io for real-time chat
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('join-user', (userId) => {
-    if (!userId) return;
-    socket.join(userId);
-    console.log(`User ${userId} joined their room`);
-  });
-
-  socket.on('join-chat', (chatId) => {
-    if (!chatId) return;
-    socket.join(chatId);
-    console.log(`User joined chat: ${chatId}`);
-  });
-
-  socket.on('leave-chat', (chatId) => {
-    if (!chatId) return;
-    socket.leave(chatId);
-    console.log(`User left chat: ${chatId}`);
-  });
-
-  socket.on('typing-start', ({ chatId, userId }) => {
-    if (!chatId || !userId) return;
-    socket.to(chatId).emit('user-typing', {
-      chatId,
-      userId,
-      typing: true
-    });
-  });
-
-  socket.on('typing-stop', ({ chatId, userId }) => {
-    if (!chatId || !userId) return;
-    socket.to(chatId).emit('user-typing', {
-      chatId,
-      userId,
-      typing: false
-    });
-  });
-
-  socket.on('message-delivered', ({ messageId, chatId }) => {
-    if (!messageId || !chatId) return;
-    socket.to(chatId).emit('message-delivery-update', {
-      messageId,
-      status: 'delivered'
-    });
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Something went wrong!',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-const PORT = process.env.PORT || 5000;
-
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-});
-
-export { io };
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}

@@ -38,11 +38,14 @@ const createTables = async () => {
         review_count INTEGER DEFAULT 0,
         properties_listed INTEGER DEFAULT 0,
         is_premium BOOLEAN DEFAULT FALSE,
+        subscription_id VARCHAR(255),
         subscription_ends TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    await pool.query('ALTER TABLE agents ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(255);');
 
     // Properties table
     await pool.query(`

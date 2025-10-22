@@ -62,4 +62,19 @@ export class Agent {
     `;
     await pool.query(query, [agentId]);
   }
+
+  static async upgradeToPremium(userId, subscriptionId, subscriptionEnds = null) {
+    const query = `
+      UPDATE agents
+      SET is_premium = TRUE,
+          subscription_ends = COALESCE($3, CURRENT_TIMESTAMP + INTERVAL '30 days'),
+          updated_at = CURRENT_TIMESTAMP,
+          subscription_id = $2
+      WHERE user_id = $1
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [userId, subscriptionId, subscriptionEnds]);
+    return result.rows[0] || null;
+  }
 }
