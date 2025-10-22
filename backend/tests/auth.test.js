@@ -1,93 +1,127 @@
 import request from 'supertest';
-import { jest } from '@jest/globals';
-
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-secret-token-value-should-be-long';
-process.env.DB_HOST = 'localhost';
-process.env.DB_NAME = 'testdb';
-process.env.DB_USER = 'test';
-process.env.CLOUDINARY_CLOUD_NAME = 'test';
-process.env.CLOUDINARY_API_KEY = 'test';
-process.env.CLOUDINARY_API_SECRET = 'test';
-process.env.EMAIL_USER = 'test@example.com';
-process.env.EMAIL_PASS = 'password';
-
-const users = new Map();
-
-jest.unstable_mockModule('../src/models/User.js', () => ({
-  User: {
-    findByEmail: jest.fn(async (email) => users.get(email) || null),
-    create: jest.fn(async ({ email, password, name, role }) => {
-      const user = {
-        id: `user-${users.size + 1}`,
-        email,
-        name,
-        role,
-        password,
-        is_verified: true,
-        email_verified: true
-      };
-      users.set(email, user);
-      return user;
-    }),
-    comparePassword: jest.fn(async (plainPassword, storedPassword) => plainPassword === storedPassword),
-    updateLastLogin: jest.fn(async () => {})
-  }
-}));
-
-jest.unstable_mockModule('../src/utils/emailService.js', () => ({
-  sendVerificationEmail: jest.fn(async () => {}),
-  sendPasswordResetEmail: jest.fn(async () => {})
-}));
-
-const { createServer } = await import('../src/server.js');
+import { app, clearTestData } from './setup.js';
 
 describe('Authentication API', () => {
-  let app;
+  beforeEach(clearTestData);
 
-  beforeAll(async () => {
-    app = await createServer();
-  });
+  describe('POST /api/auth/register', () => {
+    test('should register a new user successfully', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Test User',
+          email: 'test@example.com',
+          password: 'password123',
+          phone: '+355123456789',
+          role: 'user'
+        })
+        .expect(201);
 
-  beforeEach(() => {
-    users.clear();
-  });
-
-  test('POST /api/auth/register should create new user', async () => {
-    const response = await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'password123',
-        role: 'user'
-      })
-      .expect(201);
-
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.user.email).toBe('test@example.com');
-  });
-
-  test('POST /api/auth/login should return token', async () => {
-    users.set('test@example.com', {
-      id: 'user-1',
-      email: 'test@example.com',
-      name: 'Test User',
-      role: 'user',
-      password: 'password123',
-      is_verified: true,
-      email_verified: true
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.user.email).toBe('test@example.com');
+      expect(response.body.data.user.name).toBe('Test User');
+      expect(response.body.data.token).toBeDefined();
+      expect(response.body.data.user.password).toBeUndefined();
     });
 
-    const response = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'test@example.com',
-        password: 'password123'
-      })
-      .expect(200);
+    test('should register an agent successfully', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Test Agent',
+          email: 'agent@example.com',
+          password: 'password123',
+          role: 'agent'
+        })
+        .expect(201);
 
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.token).toBeDefined();
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.user.role).toBe('agent');
+    });
+
+    test('should reject duplicate email', async () => {
+      await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Test User',
+          email: 'duplicate@example.com',
+          password: 'password123'
+        });
+
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Another User',
+          email: 'duplicate@example.com',
+          password: 'password123'
+        })
+        .expect(409);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('already exists');
+    });
+
+    test('should validate required fields', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Test'
+        })
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.details).toBeDefined();
+    });
+  });
+
+  describe('POST /api/auth/login', () => {
+    beforeEach(async () => {
+      await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Login User',
+          email: 'login@example.com',
+          password: 'password123'
+        });
+    });
+
+    test('should login successfully with correct credentials', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'login@example.com',
+          password: 'password123'
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.token).toBeDefined();
+      expect(response.body.data.user.email).toBe('login@example.com');
+    });
+
+    test('should reject invalid credentials', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'login@example.com',
+          password: 'wrongpassword'
+        })
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toContain('Invalid email or password');
+    });
+
+    test('should reject non-existent user', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'nonexistent@example.com',
+          password: 'password123'
+        })
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+    });
   });
 });

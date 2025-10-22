@@ -248,7 +248,7 @@ export class Property {
     const dataResult = await pool.query(dataQuery, queryParams);
 
     return {
-      data: this.formatProperties(dataResult.rows),
+      properties: this.formatProperties(dataResult.rows),
       total,
       page,
       totalPages: Math.ceil(total / limit)

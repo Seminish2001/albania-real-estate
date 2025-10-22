@@ -1,12 +1,24 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+const createTransporter = () => {
+  if (process.env.NODE_ENV === 'test') {
+    return {
+      sendMail: async (options) => {
+        console.log('📨 Email send skipped in test environment', options?.subject || '');
+      }
+    };
   }
-});
+
+  return nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+};
+
+const transporter = createTransporter();
 
 export const sendVerificationEmail = async (email, token) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';

@@ -1,6 +1,6 @@
 import pool from './database.js';
 
-const createTables = async () => {
+export const createTables = async () => {
   try {
     await pool.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
 
@@ -151,8 +151,19 @@ const createTables = async () => {
     console.log('✅ Database tables created successfully');
   } catch (error) {
     console.error('❌ Error creating tables:', error);
+    throw error;
+  }
+};
+
+const run = async () => {
+  try {
+    await createTables();
+    process.exit(0);
+  } catch (error) {
     process.exit(1);
   }
 };
 
-createTables();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  run();
+}
