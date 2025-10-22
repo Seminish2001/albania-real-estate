@@ -43,6 +43,8 @@ export interface Property {
   agentAvatar?: string;
   agentAgency?: string;
   agentRating?: number;
+  agentPhone?: string;
+  agentReviewCount?: number;
   isVerified: boolean;
   views: number;
   featured: boolean;
@@ -110,4 +112,5 @@ export interface SearchFilters {
   minArea?: number;
   maxArea?: number;
   features?: string[];
+  search?: string;
 }
