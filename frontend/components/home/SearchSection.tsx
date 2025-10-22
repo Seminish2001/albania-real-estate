@@ -1,79 +1,112 @@
-import Link from 'next/link';
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, MapPin, Home } from 'lucide-react';
 
 export default function SearchSection() {
-  return (
-    <section className="section-padding py-16 bg-white">
-      <div className="container-custom">
-        <div className="max-w-4xl mx-auto text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Smart Property Search</h2>
-          <p className="text-lg text-gray-600">
-            Filter thousands of listings by location, price range, property type, and more. Save your favorite searches and get instant alerts.
-          </p>
-        </div>
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [propertyType, setPropertyType] = useState('');
+  const router = useRouter();
 
-        <div className="card p-6 md:p-8">
-          <form className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-              <input type="text" placeholder="City or neighborhood" className="input-primary" />
+  const cities = [
+    'Tirana', 'Durrës', 'Vlorë', 'Shkodër', 'Elbasan', 'Fier',
+    'Korçë', 'Berat', 'Lushnjë', 'Kavajë'
+  ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const params = new URLSearchParams();
+    if (searchTerm) params.append('q', searchTerm);
+    if (selectedCity) params.append('city', selectedCity);
+    if (propertyType) params.append('type', propertyType);
+
+    router.push(`/properties?${params.toString()}`);
+  };
+
+  return (
+    <section className="section-padding py-16 bg-gray-50">
+      <div className="container-custom">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Find Your Dream Property
+            </h2>
+            <p className="text-lg text-gray-600">
+              Search through thousands of verified listings across Albania
+            </p>
+          </div>
+
+          <form onSubmit={handleSearch} className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Search Term */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  What are you looking for?
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Apartments, villas, offices..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="input-primary pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* City */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  City
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <select
+                    value={selectedCity}
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                    className="input-primary pl-10"
+                  >
+                    <option value="">All Cities</option>
+                    {cities.map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Property Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type
+                </label>
+                <div className="relative">
+                  <Home className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <select
+                    value={propertyType}
+                    onChange={(e) => setPropertyType(e.target.value)}
+                    className="input-primary pl-10"
+                  >
+                    <option value="">All Types</option>
+                    <option value="sale">For Sale</option>
+                    <option value="rent">For Rent</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-              <select className="input-primary">
-                <option value="">Any</option>
-                <option value="sale">For Sale</option>
-                <option value="rent">For Rent</option>
-              </select>
-            </div>
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Min Price</label>
-              <input type="number" placeholder="ALL" className="input-primary" />
-            </div>
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Max Price</label>
-              <input type="number" placeholder="ALL" className="input-primary" />
-            </div>
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms</label>
-              <select className="input-primary">
-                <option value="">Any</option>
-                <option value="1">1+</option>
-                <option value="2">2+</option>
-                <option value="3">3+</option>
-                <option value="4">4+</option>
-              </select>
-            </div>
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Bathrooms</label>
-              <select className="input-primary">
-                <option value="">Any</option>
-                <option value="1">1+</option>
-                <option value="2">2+</option>
-                <option value="3">3+</option>
-              </select>
-            </div>
-            <div className="text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Property Category</label>
-              <select className="input-primary">
-                <option value="">All</option>
-                <option value="residential">Residential</option>
-                <option value="commercial">Commercial</option>
-                <option value="land">Land</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button type="submit" className="btn-primary w-full">
+
+            <div className="mt-6 text-center">
+              <button
+                type="submit"
+                className="btn-primary px-8 py-3 text-lg font-semibold"
+              >
                 Search Properties
               </button>
             </div>
           </form>
-
-          <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm text-gray-600">
-            <span>Need guidance? Explore curated collections for every lifestyle.</span>
-            <Link href="/properties" className="text-primary-600 hover:text-primary-700 font-medium mt-2 sm:mt-0">
-              Browse all properties →
-            </Link>
-          </div>
         </div>
       </div>
     </section>

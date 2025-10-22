@@ -53,4 +53,13 @@ export class Agent {
     const result = await pool.query(query, [userId]);
     return result.rows[0] || null;
   }
+
+  static async incrementPropertiesListed(agentId) {
+    const query = `
+      UPDATE agents
+      SET properties_listed = properties_listed + 1
+      WHERE id = $1
+    `;
+    await pool.query(query, [agentId]);
+  }
 }

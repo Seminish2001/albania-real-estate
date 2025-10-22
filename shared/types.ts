@@ -36,6 +36,12 @@ export interface Property {
   images: string[];
   status: 'active' | 'sold' | 'rented' | 'inactive';
   agentId: string;
+  agentName?: string;
+  agentAvatar?: string;
+  agentAgency?: string;
+  agentRating?: number;
+  agentPhone?: string;
+  agentReviewCount?: number;
   isVerified: boolean;
   views: number;
   createdAt: Date;
