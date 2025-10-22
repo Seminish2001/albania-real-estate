@@ -16,9 +16,6 @@ import userRoutes from './routes/users.js';
 import agentRoutes from './routes/agents.js';
 import chatRoutes from './routes/chat.js';
 
-// Import middleware
-import { authenticate } from './middleware/auth.js';
-
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -30,8 +27,8 @@ const io = new Server(httpServer, {
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 
 // Middleware
@@ -61,14 +58,48 @@ app.get('/api/health', (req, res) => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('join-chat', (chatId) => {
-    socket.join(chatId);
+  socket.on('join-user', (userId) => {
+    if (!userId) return;
+    socket.join(userId);
+    console.log(`User ${userId} joined their room`);
   });
 
-  socket.on('send-message', async (messageData) => {
-    // Save message to database
-    // Broadcast to other participants in the chat
-    socket.to(messageData.chatId).emit('new-message', messageData);
+  socket.on('join-chat', (chatId) => {
+    if (!chatId) return;
+    socket.join(chatId);
+    console.log(`User joined chat: ${chatId}`);
+  });
+
+  socket.on('leave-chat', (chatId) => {
+    if (!chatId) return;
+    socket.leave(chatId);
+    console.log(`User left chat: ${chatId}`);
+  });
+
+  socket.on('typing-start', ({ chatId, userId }) => {
+    if (!chatId || !userId) return;
+    socket.to(chatId).emit('user-typing', {
+      chatId,
+      userId,
+      typing: true
+    });
+  });
+
+  socket.on('typing-stop', ({ chatId, userId }) => {
+    if (!chatId || !userId) return;
+    socket.to(chatId).emit('user-typing', {
+      chatId,
+      userId,
+      typing: false
+    });
+  });
+
+  socket.on('message-delivered', ({ messageId, chatId }) => {
+    if (!messageId || !chatId) return;
+    socket.to(chatId).emit('message-delivery-update', {
+      messageId,
+      status: 'delivered'
+    });
   });
 
   socket.on('disconnect', () => {
