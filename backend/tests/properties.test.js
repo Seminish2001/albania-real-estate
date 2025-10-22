@@ -14,7 +14,7 @@ describe('Properties API', () => {
       .send({
         name: 'Property Test User',
         email: 'propertytest@example.com',
-        password: 'password123',
+        password: 'Password123!',
         role: 'agent'
       });
 
@@ -29,7 +29,7 @@ describe('Properties API', () => {
     test('should create a new property successfully', async () => {
       const propertyData = {
         title: 'Beautiful Apartment in Tirana',
-        description: 'A modern apartment in the city center',
+        description: 'A modern apartment in the city center with spacious rooms, natural light, and premium finishes.',
         type: 'sale',
         category: 'residential',
         price: 85000,
@@ -170,7 +170,7 @@ describe('Properties API', () => {
 
     test('should return 404 for non-existent property', async () => {
       const response = await request(app)
-        .get('/api/properties/non-existent-id')
+        .get('/api/properties/123e4567-e89b-12d3-a456-426614174000')
         .expect(404);
 
       expect(response.body.success).toBe(false);

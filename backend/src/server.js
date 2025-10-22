@@ -6,17 +6,25 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 
 // Security imports
-import { 
-  securityHeaders, 
-  authLimiter, 
+import {
+  securityHeaders,
+  authLimiter,
   apiLimiter,
   strictLimiter,
   sqlInjectionProtection,
-  xssProtection 
+  xssProtection
 } from './middleware/security.js';
-import { validateEnv } from './config/env.js';
 
-// Load env vars first
+// Monitoring and logging imports
+import { performanceMiddleware } from './monitoring/performance.js';
+import { requestLogger, securityLogger } from './utils/logger.js';
+import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler.js';
+
+// Config imports
+import { validateEnv } from './config/env.js';
+import { createIndexes, analyzeTables } from './config/optimize.js';
+
+// Load environment variables
 dotenv.config();
 validateEnv();
 
@@ -50,10 +58,19 @@ export const createServer = async () => {
     pingInterval: 25000
   });
 
-  // Security Middleware
+  // ===== MIDDLEWARE SETUP =====
+
+  // Security (first)
   app.use(securityHeaders);
   app.use(sqlInjectionProtection);
   app.use(xssProtection);
+
+  // Monitoring (early)
+  app.use(performanceMiddleware);
+  app.use(requestLogger);
+  app.use(securityLogger);
+
+  // Core middleware
   app.use(compression());
   app.use(cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -65,6 +82,7 @@ export const createServer = async () => {
   app.use('/api/', apiLimiter);
   app.use('/api/chat/', strictLimiter);
 
+  // Body parsers with payment webhook exception
   app.use((req, res, next) => {
     if (req.originalUrl.startsWith('/api/payments/webhook')) {
       return next();
@@ -79,17 +97,21 @@ export const createServer = async () => {
     return express.urlencoded({ extended: true, limit: '10mb' })(req, res, next);
   });
 
-  // Health check (no rate limiting)
+  // ===== ROUTES =====
+
+  // Health check (no rate limiting, no auth)
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'OK',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
-      version: '1.0.0'
+      version: '1.0.0',
+      uptime: process.uptime(),
+      memory: process.memoryUsage()
     });
   });
 
-  // Routes
+  // API routes
   app.use('/api/auth', authRoutes);
   app.use('/api/properties', propertyRoutes);
   app.use('/api/users', userRoutes);
@@ -98,7 +120,8 @@ export const createServer = async () => {
   app.use('/api/admin', adminRoutes);
   app.use('/api/payments', paymentRoutes);
 
-  // Socket.io for real-time chat
+  // ===== SOCKET.IO =====
+
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -138,45 +161,32 @@ export const createServer = async () => {
     });
   });
 
+  // ===== ERROR HANDLING =====
+
   // 404 handler
-  app.use('/api/*', (req, res) => {
-    res.status(404).json({
-      success: false,
-      error: 'API endpoint not found'
-    });
-  });
+  app.use('/api/*', notFoundHandler);
 
-  // Global error handler
-  app.use((err, req, res, next) => {
-    console.error('Global error handler:', err);
-
-    // Don't leak error details in production
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: err.message,
-      stack: err.stack
-    });
-  });
+  // Global error handler (must be last)
+  app.use(globalErrorHandler);
 
   return { app, server: httpServer, io };
 };
 
 const startServer = async () => {
-  validateEnv();
   const { server } = await createServer();
   const PORT = process.env.PORT || 5000;
+
+  // Initialize database optimizations
+  createIndexes()
+    .then(() => analyzeTables())
+    .catch(console.error);
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📊 Environment: ${process.env.NODE_ENV}`);
     console.log('🔒 Security features: Enabled');
+    console.log('📈 Monitoring: Enabled');
+    console.log('🐛 Logging: Enabled');
   });
 };
 
@@ -186,5 +196,22 @@ if (process.env.NODE_ENV !== 'test') {
     process.exit(1);
   });
 }
+
+// Graceful shutdown
+const shutdown = () => {
+  if (!httpServer) {
+    process.exit(0);
+    return;
+  }
+
+  console.log('Shutting down gracefully');
+  httpServer.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 export { io, app };

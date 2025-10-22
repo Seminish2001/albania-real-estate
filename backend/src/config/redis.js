@@ -81,11 +81,15 @@ class RedisCache {
     }
   }
 
-  async increment(key) {
+  async increment(key, value = 1) {
     if (!this.isEnabled()) return null;
 
     try {
-      return await this.redis.incr(key);
+      if (Number.isInteger(value)) {
+        return await this.redis.incrby(key, value);
+      }
+
+      return await this.redis.incrbyfloat(key, value);
     } catch (error) {
       console.error('Redis increment error:', error);
       return null;

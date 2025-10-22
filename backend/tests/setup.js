@@ -16,7 +16,8 @@ export const clearTestDatabase = async () => {
     'reviews',
     'properties',
     'agents',
-    'users'
+    'users',
+    'system_logs'
   ];
 
   for (const table of tables) {
@@ -39,6 +40,7 @@ export const clearTestData = async () => {
   await pool.query('DELETE FROM properties');
   await pool.query('DELETE FROM agents');
   await pool.query('DELETE FROM users');
+  await pool.query('DELETE FROM system_logs');
 };
 
 beforeAll(async () => {
