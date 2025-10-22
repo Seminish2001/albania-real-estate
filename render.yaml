@@ -5,6 +5,7 @@ services:
     env: node
     plan: free
     region: frankfurt
+    rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -35,6 +36,7 @@ services:
     env: node
     plan: free
     region: frankfurt
+    rootDir: frontend
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
@@ -45,7 +47,6 @@ services:
           name: immo-albania-backend
           type: web
           property: url
-          suffix: "/api"
       - key: NEXT_PUBLIC_APP_URL
         value: https://immo-albania-frontend.onrender.com
 
