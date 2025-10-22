@@ -4,11 +4,15 @@ import { Property } from '../models/Property.js';
 import { Agent } from '../models/Agent.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
+import { cacheMiddleware, invalidateCache, CACHE_PATTERNS } from '../middleware/cache.js';
+import { redisCache } from '../config/redis.js';
 
 const router = express.Router();
 
-// Get all properties with search and filters
-router.get('/', [
+// Get all properties with search and filters (Cached)
+router.get('/', 
+  cacheMiddleware(600),
+  [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('type').optional().isIn(['sale', 'rent']),
@@ -22,7 +26,7 @@ router.get('/', [
   query('maxArea').optional().isFloat({ min: 0 }),
   query('features').optional().isString(),
   query('q').optional().isString()
-], async (req, res) => {
+  ], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -79,8 +83,8 @@ router.get('/', [
   }
 });
 
-// Get featured properties
-router.get('/featured', async (req, res) => {
+// Get featured properties (Cached)
+router.get('/featured', cacheMiddleware(900), async (req, res) => {
   try {
     const featuredProperties = await Property.getFeatured();
 
@@ -142,10 +146,40 @@ router.get('/favorites/mine', authenticate, async (req, res) => {
   }
 });
 
-// Get single property
+// Get single property with caching and view tracking
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const cacheKey = `cache:/api/properties/${id}`;
+    const cacheEnabled = redisCache.isEnabled();
+
+    if (cacheEnabled) {
+      const cached = await redisCache.get(cacheKey);
+      if (cached) {
+        await Property.incrementViews(id);
+
+        const cachedProperty = cached?.data?.property;
+        if (cachedProperty) {
+          const updatedProperty = {
+            ...cachedProperty,
+            views: (cachedProperty.views ?? 0) + 1
+          };
+
+          const updatedResponse = {
+            ...cached,
+            data: {
+              ...cached.data,
+              property: updatedProperty
+            }
+          };
+
+          await redisCache.set(cacheKey, updatedResponse, 300);
+          return res.json(updatedResponse);
+        }
+
+        return res.json(cached);
+      }
+    }
 
     const property = await Property.findById(id);
     if (!property) {
@@ -157,10 +191,21 @@ router.get('/:id', async (req, res) => {
 
     await Property.incrementViews(id);
 
-    res.json({
+    const responsePayload = {
       success: true,
-      data: { property }
-    });
+      data: {
+        property: {
+          ...property,
+          views: (property.views ?? 0) + 1
+        }
+      }
+    };
+
+    if (cacheEnabled) {
+      await redisCache.set(cacheKey, responsePayload, 300);
+    }
+
+    res.json(responsePayload);
 
   } catch (error) {
     console.error('Get property error:', error);
@@ -223,6 +268,12 @@ router.post('/', authenticate, authorize('agent', 'admin'), createPropertyValida
 
     await Agent.incrementPropertiesListed(agent.id);
 
+    await invalidateCache([
+      CACHE_PATTERNS.PROPERTIES,
+      CACHE_PATTERNS.FEATURED,
+      `cache:/api/agents/${agent.id}/properties*`
+    ]);
+
     res.status(201).json({
       success: true,
       data: { property },
@@ -268,6 +319,14 @@ router.put('/:id', authenticate, authorize('agent', 'admin'), async (req, res) =
 
     const updatedProperty = await Property.update(id, req.body);
 
+    await invalidateCache([
+      CACHE_PATTERNS.PROPERTIES,
+      CACHE_PATTERNS.PROPERTY_DETAILS,
+      CACHE_PATTERNS.FEATURED,
+      `cache:/api/properties/${id}`,
+      `cache:/api/agents/${property.agentId || agent?.id}/properties*`
+    ]);
+
     res.json({
       success: true,
       data: { property: updatedProperty },
@@ -312,6 +371,14 @@ router.delete('/:id', authenticate, authorize('agent', 'admin'), async (req, res
     }
 
     await Property.delete(id);
+
+    await invalidateCache([
+      CACHE_PATTERNS.PROPERTIES,
+      CACHE_PATTERNS.PROPERTY_DETAILS,
+      CACHE_PATTERNS.FEATURED,
+      `cache:/api/properties/${id}`,
+      `cache:/api/agents/${property.agentId || agent?.id}/properties*`
+    ]);
 
     res.json({
       success: true,
@@ -376,6 +443,12 @@ router.post('/:id/images', authenticate, authorize('agent', 'admin'), async (req
     const updatedProperty = await Property.update(id, {
       images: [...(property.images || []), ...uploadedImages]
     });
+
+    await invalidateCache([
+      CACHE_PATTERNS.PROPERTY_DETAILS,
+      CACHE_PATTERNS.PROPERTIES,
+      `cache:/api/properties/${id}`
+    ]);
 
     res.json({
       success: true,
