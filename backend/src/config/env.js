@@ -4,19 +4,20 @@ config();
 
 const requiredEnvVars = [
   'JWT_SECRET',
+  'NODE_ENV'
+];
+
+const optionalEnvVars = [
   'DB_HOST',
   'DB_NAME',
   'DB_USER',
   'DB_PASSWORD',
+  'DATABASE_URL',
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
   'CLOUDINARY_API_SECRET',
   'EMAIL_USER',
   'EMAIL_PASS',
-  'NODE_ENV'
-];
-
-const optionalEnvVars = [
   'STRIPE_SECRET_KEY',
   'GOOGLE_MAPS_API_KEY',
   'SENTRY_DSN',
@@ -38,13 +39,37 @@ export const validateEnv = () => {
   }
 
   // Validate database connection
-  if (!process.env.DB_HOST || !process.env.DB_NAME || !process.env.DB_USER) {
-    throw new Error('Database configuration is incomplete');
+  if (!process.env.DATABASE_URL) {
+    const missingDbVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].filter(
+      (envVar) => !process.env[envVar]
+    );
+
+    if (missingDbVars.length > 0) {
+      console.warn(
+        `⚠️ Database configuration is incomplete. Missing variables: ${missingDbVars.join(', ')}. ` +
+          'Using default local development values.'
+      );
+    }
   }
 
   // Validate Cloudinary configuration
-  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    throw new Error('Cloudinary configuration is incomplete');
+  const missingCloudinaryVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'].filter(
+    (envVar) => !process.env[envVar]
+  );
+
+  if (missingCloudinaryVars.length > 0) {
+    console.warn(
+      '⚠️ Cloudinary configuration is incomplete. Image upload features will be disabled until these variables are set.'
+    );
+  }
+
+  // Validate email configuration
+  const missingEmailVars = ['EMAIL_USER', 'EMAIL_PASS'].filter((envVar) => !process.env[envVar]);
+
+  if (missingEmailVars.length > 0) {
+    console.warn(
+      '⚠️ Email configuration is incomplete. Email delivery features will be disabled until these variables are set.'
+    );
   }
 
   console.log('✅ Environment validation passed');
