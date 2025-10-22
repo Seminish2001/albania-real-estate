@@ -5,7 +5,20 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { Agent } from '../models/Agent.js';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const isStripeConfigured = Boolean(stripeSecretKey);
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+let stripe = null;
+
+if (isStripeConfigured) {
+  stripe = new Stripe(stripeSecretKey);
+} else {
+  console.warn(
+    '⚠️ Stripe environment variables are not configured. Payment features are disabled until STRIPE_SECRET_KEY is set.'
+  );
+}
 
 // Subscription plans
 const SUBSCRIPTION_PLANS = {
@@ -25,9 +38,25 @@ const SUBSCRIPTION_PLANS = {
   }
 };
 
+const ensureStripeAvailable = (res) => {
+  if (!stripe) {
+    return res.status(503).json({
+      success: false,
+      error: 'Payment service is currently unavailable. Please try again later.'
+    });
+  }
+  return true;
+};
+
+Object.entries(SUBSCRIPTION_PLANS).forEach(([planKey, plan]) => {
+  if (!plan.priceId) {
+    console.warn(`⚠️ Stripe price ID is not configured for plan: ${planKey}`);
+  }
+});
+
 // Create subscription
-router.post('/create-subscription', 
-  authenticate, 
+router.post('/create-subscription',
+  authenticate,
   authorize('agent'),
   [
     body('paymentMethodId').notEmpty(),
@@ -35,6 +64,8 @@ router.post('/create-subscription',
   ],
   async (req, res) => {
     try {
+      if (!ensureStripeAvailable(res)) return;
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({
@@ -47,10 +78,10 @@ router.post('/create-subscription',
       const { paymentMethodId, planId } = req.body;
       const plan = SUBSCRIPTION_PLANS[planId];
 
-      if (!plan) {
+      if (!plan || !plan.priceId) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid plan selected'
+          error: 'Selected plan is not available at the moment'
         });
       }
 
@@ -125,11 +156,13 @@ router.post('/create-subscription',
 );
 
 // Cancel subscription
-router.post('/cancel-subscription', 
-  authenticate, 
+router.post('/cancel-subscription',
+  authenticate,
   authorize('agent'),
   async (req, res) => {
     try {
+      if (!ensureStripeAvailable(res)) return;
+
       const agent = await Agent.findByUserId(req.user.id);
       
       if (!agent || !agent.stripe_subscription_id) {
@@ -169,11 +202,16 @@ router.post('/cancel-subscription',
 
 // Webhook handler for Stripe events
 router.post('/webhook', express.raw({type: 'application/json'}), (req, res) => {
+  if (!stripe || !stripeWebhookSecret) {
+    console.warn('Stripe webhook received but Stripe is not configured.');
+    return res.status(503).json({ success: false, error: 'Payment service unavailable' });
+  }
+
   const sig = req.headers['stripe-signature'];
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(req.body, sig, stripeWebhookSecret);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -230,6 +268,8 @@ const handlePaymentFailed = async (invoice) => {
 // Get subscription status
 router.get('/subscription/status', authenticate, authorize('agent'), async (req, res) => {
   try {
+    if (!ensureStripeAvailable(res)) return;
+
     const agent = await Agent.findByUserId(req.user.id);
     
     if (!agent || !agent.stripe_subscription_id) {
