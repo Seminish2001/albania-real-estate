@@ -434,4 +434,23 @@ export class Property {
 
     return this.formatProperties(result.rows);
   }
+
+  static async verify(propertyId, adminId = null) {
+    const query = `
+      UPDATE properties
+      SET is_verified = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [propertyId]);
+
+    if (result.rowCount === 0) {
+      throw new Error('Property not found');
+    }
+
+    const property = result.rows[0];
+    return this.formatProperty(property);
+  }
 }
