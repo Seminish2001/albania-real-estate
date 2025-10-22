@@ -1,7 +1,18 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
 import { isProduction } from '../config/env.js';
 import pool from '../config/database.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const logsDir = path.join(__dirname, '../../logs');
+
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
 
 // Define log formats
 const consoleFormat = winston.format.combine(
@@ -35,7 +46,7 @@ export const logger = winston.createLogger({
 
     // Daily rotate file for errors
     new winston.transports.DailyRotateFile({
-      filename: 'logs/error-%DATE%.log',
+      filename: path.join(logsDir, 'error-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       level: 'error',
       format: fileFormat,
@@ -45,7 +56,7 @@ export const logger = winston.createLogger({
 
     // Daily rotate file for all logs
     new winston.transports.DailyRotateFile({
-      filename: 'logs/combined-%DATE%.log',
+      filename: path.join(logsDir, 'combined-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       format: fileFormat,
       maxFiles: '14d',
@@ -54,7 +65,7 @@ export const logger = winston.createLogger({
 
     // Audit log for security events
     new winston.transports.DailyRotateFile({
-      filename: 'logs/audit-%DATE%.log',
+      filename: path.join(logsDir, 'audit-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       level: 'info',
       format: fileFormat,
@@ -65,14 +76,14 @@ export const logger = winston.createLogger({
   // Handle exceptions
   exceptionHandlers: [
     new winston.transports.File({
-      filename: 'logs/exceptions.log',
+      filename: path.join(logsDir, 'exceptions.log'),
       format: fileFormat
     })
   ],
 
   rejectionHandlers: [
     new winston.transports.File({
-      filename: 'logs/rejections.log',
+      filename: path.join(logsDir, 'rejections.log'),
       format: fileFormat
     })
   ]
