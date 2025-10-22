@@ -69,12 +69,24 @@ export interface Agent {
 
 export interface Chat {
   id: string;
-  propertyId?: string;
+  propertyId?: string | null;
   property?: Property;
-  participants: string[];
-  lastMessage?: string;
-  lastMessageAt: string;
+  participants?: string[];
+  lastMessage?: string | null;
+  lastMessageAt?: string | null;
   createdAt: string;
+  updatedAt?: string;
+  propertyTitle?: string | null;
+  propertyImages?: string[];
+  propertyPrice?: number | null;
+  propertyCurrency?: string | null;
+  otherUserId?: string;
+  otherUserName?: string;
+  otherUserAvatar?: string | null;
+  otherUserRole?: 'user' | 'agent' | 'admin';
+  otherUserAgency?: string | null;
+  unreadCount?: number;
+  messages?: Message[];
 }
 
 export interface Message {
@@ -85,6 +97,10 @@ export interface Message {
   type: 'text' | 'image' | 'file';
   read: boolean;
   createdAt: string;
+  updatedAt?: string;
+  senderName?: string;
+  senderAvatar?: string | null;
+  senderRole?: 'user' | 'agent' | 'admin';
 }
 
 export interface ApiResponse<T = any> {
