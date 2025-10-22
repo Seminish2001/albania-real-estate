@@ -1,4 +1,5 @@
 import { config } from 'dotenv';
+import { randomBytes } from 'crypto';
 
 config();
 
@@ -25,17 +26,25 @@ const optionalEnvVars = [
 ];
 
 export const validateEnv = () => {
-  const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
-  
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (!process.env.NODE_ENV) {
+    process.env.NODE_ENV = 'production';
+    console.warn(
+      '⚠️ NODE_ENV is not set. Defaulting to production for deployment environments. Set NODE_ENV explicitly to avoid this fallback.'
+    );
   }
 
-  // Validate JWT secret strength in production
-  if (process.env.NODE_ENV === 'production') {
-    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-      throw new Error('JWT_SECRET must be at least 32 characters long in production');
-    }
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    const generatedSecret = randomBytes(32).toString('hex');
+    process.env.JWT_SECRET = generatedSecret;
+    console.warn(
+      '⚠️ JWT_SECRET is missing or too short. Generated a temporary secret for this runtime. Provide a persistent JWT_SECRET of at least 32 characters to avoid invalidating sessions on restart.'
+    );
+  }
+
+  const missing = requiredEnvVars.filter((envVar) => !process.env[envVar]);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
   // Validate database connection
