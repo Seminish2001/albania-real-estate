@@ -63,18 +63,104 @@ export class Agent {
     await pool.query(query, [agentId]);
   }
 
-  static async upgradeToPremium(userId, subscriptionId, subscriptionEnds = null) {
+  static async upgradeToPremium(userId, subscriptionId, customerId, plan) {
+    const subscriptionEnds = new Date();
+    
+    if (plan === 'premium_monthly') {
+      subscriptionEnds.setMonth(subscriptionEnds.getMonth() + 1);
+    } else if (plan === 'premium_yearly') {
+      subscriptionEnds.setFullYear(subscriptionEnds.getFullYear() + 1);
+    }
+
     const query = `
-      UPDATE agents
-      SET is_premium = TRUE,
-          subscription_ends = COALESCE($3, CURRENT_TIMESTAMP + INTERVAL '30 days'),
-          updated_at = CURRENT_TIMESTAMP,
-          subscription_id = $2
-      WHERE user_id = $1
+      UPDATE agents 
+      SET is_premium = TRUE, 
+          subscription_ends = $1,
+          stripe_subscription_id = $2,
+          stripe_customer_id = $3,
+          subscription_plan = $4,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $5
       RETURNING *
     `;
 
-    const result = await pool.query(query, [userId, subscriptionId, subscriptionEnds]);
-    return result.rows[0] || null;
+    const result = await pool.query(query, [
+      subscriptionEnds,
+      subscriptionId,
+      customerId,
+      plan,
+      userId
+    ]);
+
+    return result.rows[0];
+  }
+
+  static async downgradeFromPremium(userId) {
+    const query = `
+      UPDATE agents 
+      SET is_premium = FALSE, 
+          subscription_ends = NULL,
+          stripe_subscription_id = NULL,
+          subscription_plan = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $1
+    `;
+
+    await pool.query(query, [userId]);
+  }
+
+  static async renewSubscription(subscriptionId) {
+    const agent = await this.findBySubscriptionId(subscriptionId);
+    if (!agent) return;
+
+    const subscriptionEnds = new Date();
+    
+    if (agent.subscription_plan === 'premium_monthly') {
+      subscriptionEnds.setMonth(subscriptionEnds.getMonth() + 1);
+    } else if (agent.subscription_plan === 'premium_yearly') {
+      subscriptionEnds.setFullYear(subscriptionEnds.getFullYear() + 1);
+    }
+
+    const query = `
+      UPDATE agents 
+      SET subscription_ends = $1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE stripe_subscription_id = $2
+    `;
+
+    await pool.query(query, [subscriptionEnds, subscriptionId]);
+  }
+
+  static async downgradeFromPremiumBySubscription(subscriptionId) {
+    const query = `
+      UPDATE agents 
+      SET is_premium = FALSE, 
+          subscription_ends = NULL,
+          stripe_subscription_id = NULL,
+          subscription_plan = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE stripe_subscription_id = $1
+    `;
+
+    await pool.query(query, [subscriptionId]);
+  }
+
+  static async findBySubscriptionId(subscriptionId) {
+    const query = 'SELECT * FROM agents WHERE stripe_subscription_id = $1';
+    const result = await pool.query(query, [subscriptionId]);
+    return result.rows[0];
+  }
+
+  static async getPremiumAgents() {
+    const query = `
+      SELECT a.*, u.name, u.email, u.avatar, u.phone
+      FROM agents a
+      JOIN users u ON a.user_id = u.id
+      WHERE a.is_premium = TRUE
+      ORDER BY a.rating DESC, a.review_count DESC
+    `;
+
+    const result = await pool.query(query);
+    return result.rows;
   }
 }
