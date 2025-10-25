@@ -14,9 +14,17 @@ const getEnv = (primary, ...fallbacks) => {
   return undefined;
 };
 
-const connectionConfig = getEnv('DATABASE_URL', 'POSTGRES_URL', 'PGURL')
+const connectionString = getEnv('DATABASE_URL', 'POSTGRES_URL', 'PGURL');
+
+if (!connectionString && isProduction) {
+  throw new Error(
+    'Database connection details are missing. Set DATABASE_URL or the individual DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD variables before starting the server in production.'
+  );
+}
+
+const connectionConfig = connectionString
   ? {
-      connectionString: getEnv('DATABASE_URL', 'POSTGRES_URL', 'PGURL'),
+      connectionString,
       ssl: isProduction ? { rejectUnauthorized: false } : false,
     }
   : {

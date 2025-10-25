@@ -3,10 +3,7 @@ import { randomBytes } from 'crypto';
 
 config();
 
-const requiredEnvVars = [
-  'JWT_SECRET',
-  'NODE_ENV'
-];
+const requiredEnvVars = ['JWT_SECRET', 'NODE_ENV'];
 
 const optionalEnvVars = [
   'DB_HOST',
@@ -37,6 +34,8 @@ export const validateEnv = () => {
     );
   }
 
+  const isProductionEnv = process.env.NODE_ENV === 'production';
+
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     const generatedSecret = randomBytes(32).toString('hex');
     process.env.JWT_SECRET = generatedSecret;
@@ -61,10 +60,18 @@ export const validateEnv = () => {
       'DB_NAME',
       'DB_USER',
       'DB_PASSWORD',
+      'DB_PORT',
       'DATABASE_HOST',
       'DATABASE_NAME',
       'DATABASE_USER',
       'DATABASE_PASSWORD',
+      'DATABASE_PORT',
+      'POSTGRES_HOST',
+      'POSTGRES_DB',
+      'POSTGRES_USER',
+      'POSTGRES_PASSWORD',
+      'POSTGRES_PORT',
+      'PGPORT',
       'PGHOST',
       'PGDATABASE',
       'PGUSER',
@@ -74,9 +81,16 @@ export const validateEnv = () => {
     const missingDbVars = dbKeys.filter((envVar) => !process.env[envVar]);
 
     if (missingDbVars.length > 0) {
+      const baseMessage = `Database configuration is incomplete. Missing variables: ${missingDbVars.join(', ')}.`;
+
+      if (isProductionEnv) {
+        throw new Error(
+          `${baseMessage} Set DATABASE_URL or the individual DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD variables for production deployments.`
+        );
+      }
+
       console.warn(
-        `⚠️ Database configuration is incomplete. Missing variables: ${missingDbVars.join(', ')}. ` +
-          'Using default local development values.'
+        `⚠️ ${baseMessage} Using default local development values.`
       );
     }
   }
