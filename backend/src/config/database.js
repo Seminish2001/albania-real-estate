@@ -4,17 +4,29 @@ const { Pool } = pg;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const connectionConfig = process.env.DATABASE_URL
+const getEnv = (primary, ...fallbacks) => {
+  for (const key of [primary, ...fallbacks]) {
+    const value = process.env[key];
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const connectionConfig = getEnv('DATABASE_URL', 'POSTGRES_URL', 'PGURL')
   ? {
-      connectionString: process.env.DATABASE_URL,
+      connectionString: getEnv('DATABASE_URL', 'POSTGRES_URL', 'PGURL'),
       ssl: isProduction ? { rejectUnauthorized: false } : false,
     }
   : {
-      host: process.env.DB_HOST || 'localhost',
-      port: Number(process.env.DB_PORT) || 5432,
-      database: process.env.DB_NAME || 'immo_albania',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
+      host: getEnv('DB_HOST', 'DATABASE_HOST', 'PGHOST', 'POSTGRES_HOST') || '127.0.0.1',
+      port: Number(getEnv('DB_PORT', 'DATABASE_PORT', 'PGPORT', 'POSTGRES_PORT')) || 5432,
+      database: getEnv('DB_NAME', 'DATABASE_NAME', 'PGDATABASE', 'POSTGRES_DB') || 'immo_albania',
+      user: getEnv('DB_USER', 'DATABASE_USER', 'PGUSER', 'POSTGRES_USER') || 'postgres',
+      password:
+        getEnv('DB_PASSWORD', 'DATABASE_PASSWORD', 'PGPASSWORD', 'POSTGRES_PASSWORD') ||
+        'password',
       ssl: isProduction ? { rejectUnauthorized: false } : false,
     };
 
