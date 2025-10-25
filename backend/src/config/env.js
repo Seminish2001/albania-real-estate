@@ -13,6 +13,10 @@ const optionalEnvVars = [
   'DB_NAME',
   'DB_USER',
   'DB_PASSWORD',
+  'DATABASE_HOST',
+  'DATABASE_NAME',
+  'DATABASE_USER',
+  'DATABASE_PASSWORD',
   'DATABASE_URL',
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
@@ -48,10 +52,26 @@ export const validateEnv = () => {
   }
 
   // Validate database connection
-  if (!process.env.DATABASE_URL) {
-    const missingDbVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].filter(
-      (envVar) => !process.env[envVar]
-    );
+  const hasConnectionString =
+    process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PGURL;
+
+  if (!hasConnectionString) {
+    const dbKeys = [
+      'DB_HOST',
+      'DB_NAME',
+      'DB_USER',
+      'DB_PASSWORD',
+      'DATABASE_HOST',
+      'DATABASE_NAME',
+      'DATABASE_USER',
+      'DATABASE_PASSWORD',
+      'PGHOST',
+      'PGDATABASE',
+      'PGUSER',
+      'PGPASSWORD'
+    ];
+
+    const missingDbVars = dbKeys.filter((envVar) => !process.env[envVar]);
 
     if (missingDbVars.length > 0) {
       console.warn(
