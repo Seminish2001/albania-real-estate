@@ -22,12 +22,12 @@ import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler.j
 
 // Config imports
 import { validateEnv } from './config/env.js';
-import { createTables } from './config/migrate.js';
 import {
   createIndexes,
   analyzeTables,
   createPerformanceViews
 } from './config/optimize.js';
+import { createTables } from './config/migrate.js';
 
 // Load environment variables
 dotenv.config();
