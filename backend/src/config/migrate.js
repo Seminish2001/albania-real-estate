@@ -86,9 +86,17 @@ export const createTables = async () => {
       CREATE TABLE IF NOT EXISTS chats (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+        last_message TEXT,
+        last_message_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await pool.query(`
+      ALTER TABLE chats
+      ADD COLUMN IF NOT EXISTS last_message TEXT,
+      ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP;
     `);
 
     // Chat participants table

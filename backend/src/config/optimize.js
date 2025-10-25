@@ -53,11 +53,12 @@ export const createIndexes = async () => {
      ON reviews(agent_id, created_at DESC)`,
 
     // Full-text search index for advanced search
-    `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_search_fulltext 
+    `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_search_fulltext
      ON properties USING gin(
-       setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-       setweight(to_tsvector('english', coalesce(description, '')), 'B') ||
-       setweight(to_tsvector('english', coalesce(city, '')), 'C')
+       to_tsvector(
+         'english',
+         coalesce(title, '') || ' ' || coalesce(description, '') || ' ' || coalesce(city, '')
+       )
      )`
   ];
 
@@ -67,6 +68,7 @@ export const createIndexes = async () => {
       console.log(`✅ Created index: ${indexQuery.split('IF NOT EXISTS')[1]?.split(' ON')[0] || 'index'}`);
     } catch (error) {
       console.error('❌ Failed to create index:', error.message);
+      console.error('   Query:', indexQuery.trim());
     }
   }
 
