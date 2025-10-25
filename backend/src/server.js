@@ -23,6 +23,7 @@ import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler.j
 // Config imports
 import { validateEnv } from './config/env.js';
 import { createIndexes, analyzeTables } from './config/optimize.js';
+import { createTables } from './config/migrate.js';
 
 // Load environment variables
 dotenv.config();
@@ -176,10 +177,31 @@ const startServer = async () => {
   const { server } = await createServer();
   const PORT = process.env.PORT || 5000;
 
-  // Initialize database optimizations
-  createIndexes()
-    .then(() => analyzeTables())
-    .catch(console.error);
+  try {
+    console.log('Running database migrations to ensure schema is up to date...');
+    await createTables();
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    console.error('❌ Failed to run database migrations:', error);
+    throw error;
+  }
+
+  const shouldOptimizeDb = process.env.ENABLE_DB_OPTIMIZATIONS === 'true';
+
+  if (shouldOptimizeDb) {
+    // Run optional database optimizations. These are disabled by default to
+    // avoid long-running index creation on constrained environments such as the
+    // Render free tier. Set ENABLE_DB_OPTIMIZATIONS=true to enable them.
+    createIndexes()
+      .then(() => analyzeTables())
+      .catch((error) => {
+        console.error('Database optimization task failed:', error);
+      });
+  } else {
+    console.log(
+      'Skipping database optimization tasks (set ENABLE_DB_OPTIMIZATIONS=true to enable them).'
+    );
+  }
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
