@@ -22,7 +22,12 @@ import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler.j
 
 // Config imports
 import { validateEnv } from './config/env.js';
-import { ensureDatabaseSchema, scheduleDatabaseOptimizations } from './startup/database.js';
+import { createTables } from './config/migrate.js';
+import {
+  createIndexes,
+  analyzeTables,
+  createPerformanceViews
+} from './config/optimize.js';
 
 // Load environment variables
 dotenv.config();
@@ -172,12 +177,47 @@ export const createServer = async () => {
   return { app, server: httpServer, io };
 };
 
+const shouldRunOptimizations = () => {
+  const flag = process.env.ENABLE_DB_OPTIMIZATIONS;
+  return flag && flag.toLowerCase() === 'true';
+};
+
+const runDatabaseOptimizations = async () => {
+  if (!shouldRunOptimizations()) {
+    console.log(
+      'Skipping database optimization tasks (set ENABLE_DB_OPTIMIZATIONS=true to enable them).'
+    );
+    return;
+  }
+
+  try {
+    console.log('Scheduling database optimization tasks...');
+    await createIndexes();
+    await analyzeTables();
+    await createPerformanceViews();
+    console.log('Database optimization tasks completed successfully');
+  } catch (error) {
+    console.error('Database optimization task failed:', error);
+  }
+};
+
+const ensureDatabaseSchema = async () => {
+  try {
+    console.log('Running database migrations to ensure schema is up to date...');
+    await createTables();
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    console.error('❌ Failed to run database migrations:', error);
+    throw error;
+  }
+};
+
 const startServer = async () => {
   const { server } = await createServer();
   const PORT = process.env.PORT || 5000;
 
   await ensureDatabaseSchema();
-  scheduleDatabaseOptimizations();
+  runDatabaseOptimizations();
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
