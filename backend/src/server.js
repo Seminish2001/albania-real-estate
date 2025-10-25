@@ -23,6 +23,7 @@ import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler.j
 // Config imports
 import { validateEnv } from './config/env.js';
 import { createIndexes, analyzeTables } from './config/optimize.js';
+import { createTables } from './config/migrate.js';
 
 // Load environment variables
 dotenv.config();
@@ -176,10 +177,21 @@ const startServer = async () => {
   const { server } = await createServer();
   const PORT = process.env.PORT || 5000;
 
+  try {
+    console.log('Running database migrations to ensure schema is up to date...');
+    await createTables();
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    console.error('❌ Failed to run database migrations:', error);
+    throw error;
+  }
+
   // Initialize database optimizations
   createIndexes()
     .then(() => analyzeTables())
-    .catch(console.error);
+    .catch((error) => {
+      console.error('Database optimization task failed:', error);
+    });
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
