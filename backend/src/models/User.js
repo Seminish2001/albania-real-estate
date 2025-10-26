@@ -1,5 +1,6 @@
 import pool from '../config/database.js';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 
 export class User {
   static async create(userData) {
@@ -15,12 +16,13 @@ export class User {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const query = `
-      INSERT INTO users (email, password, name, role, phone, verification_token)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO users (id, email, password, name, role, phone, verification_token)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, email, name, role, phone, avatar, is_verified, email_verified, created_at, updated_at, last_login
     `;
 
     const result = await pool.query(query, [
+      randomUUID(),
       email,
       hashedPassword,
       name,

@@ -1,5 +1,6 @@
 import express from 'express';
 import { body, validationResult, query } from 'express-validator';
+import { randomUUID } from 'crypto';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { Property } from '../models/Property.js';
 import pool from '../config/database.js';
@@ -591,9 +592,9 @@ async function updateUserRole(userId, newRole) {
       if (agentCheck.rows.length === 0) {
         // Create agent record
         await client.query(`
-          INSERT INTO agents (user_id, experience, specialization, rating, review_count, properties_listed)
-          VALUES ($1, 0, '{}', 0, 0, 0)
-        `, [userId]);
+          INSERT INTO agents (id, user_id, experience, specialization, rating, review_count, properties_listed)
+          VALUES ($1, $2, 0, '{}', 0, 0, 0)
+        `, [randomUUID(), userId]);
       }
     } else if (previousRole === 'agent' && newRole !== 'agent') {
       // Remove agent record if changing from agent to non-agent

@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { randomUUID } from 'crypto';
 
 export class Agent {
   static async create(agentData) {
@@ -17,6 +18,7 @@ export class Agent {
 
     const query = `
       INSERT INTO agents (
+        id,
         user_id,
         agency,
         license_number,
@@ -28,11 +30,12 @@ export class Agent {
         is_premium,
         subscription_ends
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
 
     const result = await pool.query(query, [
+      randomUUID(),
       userId,
       agency,
       licenseNumber,

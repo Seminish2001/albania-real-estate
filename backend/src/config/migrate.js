@@ -2,12 +2,10 @@ import pool from './database.js';
 
 export const createTables = async () => {
   try {
-    await pool.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
-
     // Users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
@@ -25,10 +23,12 @@ export const createTables = async () => {
       );
     `);
 
+    await pool.query('ALTER TABLE users ALTER COLUMN id DROP DEFAULT;');
+
     // Agents table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS agents (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         agency VARCHAR(255),
         license_number VARCHAR(100),
@@ -46,11 +46,12 @@ export const createTables = async () => {
     `);
 
     await pool.query('ALTER TABLE agents ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(255);');
+    await pool.query('ALTER TABLE agents ALTER COLUMN id DROP DEFAULT;');
 
     // Properties table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS properties (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         title VARCHAR(500) NOT NULL,
         description TEXT NOT NULL,
         type VARCHAR(50) CHECK (type IN ('sale', 'rent')) NOT NULL,
@@ -81,10 +82,12 @@ export const createTables = async () => {
       );
     `);
 
+    await pool.query('ALTER TABLE properties ALTER COLUMN id DROP DEFAULT;');
+
     // Chats table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS chats (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
         last_message TEXT,
         last_message_at TIMESTAMP,
@@ -92,6 +95,8 @@ export const createTables = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    await pool.query('ALTER TABLE chats ALTER COLUMN id DROP DEFAULT;');
 
     await pool.query(`
       ALTER TABLE chats
@@ -112,7 +117,7 @@ export const createTables = async () => {
     // Messages table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
         sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
         content TEXT NOT NULL,
@@ -121,6 +126,8 @@ export const createTables = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    await pool.query('ALTER TABLE messages ALTER COLUMN id DROP DEFAULT;');
 
     // Favorites table
     await pool.query(`
@@ -135,7 +142,7 @@ export const createTables = async () => {
     // Reviews table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reviews (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
@@ -144,6 +151,8 @@ export const createTables = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    await pool.query('ALTER TABLE reviews ALTER COLUMN id DROP DEFAULT;');
 
     // Indexes for performance
     await pool.query(`
@@ -159,7 +168,7 @@ export const createTables = async () => {
     // System logs table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS system_logs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id UUID PRIMARY KEY,
         type VARCHAR(50) NOT NULL CHECK (type IN ('error', 'warning', 'info', 'security')),
         message TEXT NOT NULL,
         details JSONB,
@@ -169,6 +178,8 @@ export const createTables = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    await pool.query('ALTER TABLE system_logs ALTER COLUMN id DROP DEFAULT;');
 
     // Add suspension fields to users table
     await pool.query(`
