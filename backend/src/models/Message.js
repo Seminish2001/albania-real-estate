@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { randomUUID } from 'crypto';
 
 export class Message {
   static formatMessage(row) {
@@ -23,12 +24,18 @@ export class Message {
     const { chatId, senderId, content, type = 'text' } = messageData;
 
     const query = `
-      INSERT INTO messages (chat_id, sender_id, content, type)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO messages (id, chat_id, sender_id, content, type)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
 
-    const result = await pool.query(query, [chatId, senderId, content, type]);
+    const result = await pool.query(query, [
+      randomUUID(),
+      chatId,
+      senderId,
+      content,
+      type
+    ]);
     return this.formatMessage(result.rows[0]);
   }
 

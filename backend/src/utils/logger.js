@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
+import { randomUUID } from 'crypto';
 import { isProduction } from '../config/env.js';
 import pool from '../config/database.js';
 
@@ -152,11 +153,12 @@ export class ApplicationLogger {
   static async logToDatabase(type, message, details = {}) {
     try {
       const query = `
-        INSERT INTO system_logs (type, message, details, user_id, ip_address, user_agent)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO system_logs (id, type, message, details, user_id, ip_address, user_agent)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       `;
 
       await pool.query(query, [
+        randomUUID(),
         type,
         message,
         details,

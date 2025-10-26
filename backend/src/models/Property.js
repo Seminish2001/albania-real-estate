@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { randomUUID } from 'crypto';
 
 export class Property {
   static formatProperty(row) {
@@ -75,14 +76,16 @@ export class Property {
 
     const query = `
       INSERT INTO properties (
+        id,
         title, description, type, category, price, currency, city, municipality,
         address, latitude, longitude, bedrooms, bathrooms, area, floor,
         total_floors, year_built, features, images, agent_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `;
 
     const result = await pool.query(query, [
+      randomUUID(),
       title,
       description,
       type,
