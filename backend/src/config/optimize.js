@@ -55,10 +55,10 @@ export const createIndexes = async () => {
     // Full-text search index for advanced search
     `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_search_fulltext
      ON properties USING gin(
-       to_tsvector(
-         'english',
-         concat_ws(' ', coalesce(title, ''), coalesce(description, ''), coalesce(city, ''))
-       )
+        to_tsvector(
+          'english',
+          (coalesce(title, '') || ' ' || coalesce(description, '') || ' ' || coalesce(city, ''))
+        )
      )`
   ];
 
