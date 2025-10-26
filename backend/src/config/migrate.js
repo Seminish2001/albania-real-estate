@@ -78,11 +78,38 @@ export const createTables = async () => {
         featured BOOLEAN DEFAULT FALSE,
         featured_until TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        search_vector tsvector GENERATED ALWAYS AS (
+          to_tsvector(
+            'english',
+            coalesce(title, '') || ' ' || coalesce(description, '') || ' ' || coalesce(city, '')
+          )
+        ) STORED
       );
     `);
 
     await pool.query('ALTER TABLE properties ALTER COLUMN id DROP DEFAULT;');
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'properties'
+            AND column_name = 'search_vector'
+        ) THEN
+          ALTER TABLE properties
+          ADD COLUMN search_vector tsvector GENERATED ALWAYS AS (
+            to_tsvector(
+              'english',
+              coalesce(title, '') || ' ' || coalesce(description, '') || ' ' || coalesce(city, '')
+            )
+          ) STORED;
+        END IF;
+      END;
+      $$;
+    `);
 
     // Chats table
     await pool.query(`
