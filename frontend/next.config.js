@@ -1,3 +1,8 @@
+const { getBackendApiBase, getBackendHost } = require('./lib/backendConfig');
+
+const backendUrl = getBackendApiBase();
+const backendHost = getBackendHost();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -12,10 +17,8 @@ const nextConfig = {
     ],
   },
   env: {
-    NEXT_PUBLIC_BACKEND_URL:
-      process.env.NEXT_PUBLIC_BACKEND_URL ||
-      process.env.BACKEND_URL ||
-      'https://immo-albania-backend.onrender.com/api',
+    NEXT_PUBLIC_BACKEND_URL: backendUrl,
+    NEXT_PUBLIC_BACKEND_HOST: backendHost,
   },
   async headers() {
     return [

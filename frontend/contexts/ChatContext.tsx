@@ -11,6 +11,7 @@ import React, {
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { Chat, Message } from '../types';
+import { getBackendApiBase, getBackendSocketBase } from '../lib/backendConfig';
 
 interface ChatContextType {
   socket: Socket | null;
@@ -30,12 +31,8 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  process.env.BACKEND_URL ||
-  'http://localhost:5000/api'
-).replace(/\/$/, '');
-const SOCKET_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+const API_BASE_URL = getBackendApiBase();
+const SOCKET_BASE_URL = getBackendSocketBase();
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
