@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
   output: 'standalone',
   images: {
     domains: ['res.cloudinary.com', 'lh3.googleusercontent.com'],
@@ -15,7 +12,10 @@ const nextConfig = {
     ],
   },
   env: {
-    BACKEND_URL: process.env.BACKEND_URL || 'https://immo-albania-backend.onrender.com/api',
+    NEXT_PUBLIC_BACKEND_URL:
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.BACKEND_URL ||
+      'https://immo-albania-backend.onrender.com/api',
   },
   async headers() {
     return [
