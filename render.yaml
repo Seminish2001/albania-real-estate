@@ -51,11 +51,16 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: BACKEND_URL
+      - key: BACKEND_HOST
         fromService:
           name: immo-albania-backend
           type: web
-          property: url
+          property: host
+      - key: NEXT_PUBLIC_BACKEND_HOST
+        fromService:
+          name: immo-albania-backend
+          type: web
+          property: host
       - key: NEXT_PUBLIC_APP_URL
         value: https://immo-albania-frontend.onrender.com
 

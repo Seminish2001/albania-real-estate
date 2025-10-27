@@ -1,9 +1,12 @@
 import axios from 'axios';
 
+const BACKEND_HOST =
+  process.env.NEXT_PUBLIC_BACKEND_HOST || process.env.BACKEND_HOST || '';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.BACKEND_URL ||
-  'http://localhost:5000/api';
+  (BACKEND_HOST ? `https://${BACKEND_HOST}/api` : 'http://localhost:5000/api');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
